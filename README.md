@@ -195,6 +195,22 @@ node probe/check-npm-compat.mjs <package-name>   # will a third-party plugin be 
 | `probe/verify-llm-plugin.mjs` | Self-check: config, prompt building, adapter contract, rate-limit gate, stream |
 | `probe/check-npm-compat.mjs` | Replays DSH's compatibility gate for any npm package before installing it |
 
+## Releasing
+
+Releases are automated by [`.github/workflows/publish.yml`](.github/workflows/publish.yml),
+which publishes to npm when a `v*` tag is pushed:
+
+```sh
+npm version patch        # or minor / major — bumps package.json and creates the tag
+git push --follow-tags   # the tag triggers the workflow
+```
+
+The workflow verifies that the tag matches `package.json`, runs the offline self-check,
+then publishes with provenance. It needs a repository secret named `NPM_TOKEN` — a
+**granular access token with "Bypass 2FA" enabled** (this npm account uses 2FA; a plain
+token is rejected in CI with `E403`). You can also trigger it manually from the Actions
+tab, where the default is a `--dry-run`.
+
 ## Contributing
 
 Issues and PRs are welcome. Keep the zero-dependency, no-build-step constraint, and please
