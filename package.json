@@ -1,0 +1,53 @@
+{
+    "name":  "dsh-bridge-llm-plugin",
+    "version":  "0.1.0",
+    "description":  "DeepSeek Harness LLM adapter: use your logged-in DeepSeek web chat (deepseek.com) as a model provider through the local dsh-bridge browser bridge. Streaming is single-shot (the whole reply arrives as text deltas); the web UI exposes no structured tool calls, so this model is chat-only.",
+    "type":  "module",
+    "main":  "lib/index.js",
+    "exports":  {
+                    ".":  "./lib/index.js",
+                    "./package.json":  "./package.json"
+                },
+    "files":  [
+                  "lib/index.js",
+                  "lib/adapter.js",
+                  "lib/mcp-client.js",
+                  "cordis.patch.yml"
+              ],
+    "keywords":  [
+                     "deepseek-harness",
+                     "dsh",
+                     "dsh-plugin",
+                     "llm-adapter",
+                     "deepseek",
+                     "dsh-bridge",
+                     "playwright"
+                 ],
+    "license":  "MIT",
+    "engines":  {
+                    "node":  "\u003e=20"
+                },
+    "peerDependencies":  {
+                             "@deepseek-ai/dsh-llm":  "*"
+                         },
+    "peerDependenciesMeta":  {
+                                 "@deepseek-ai/dsh-llm":  {
+                                                              "optional":  true
+                                                          }
+                             },
+    "dsh":  {
+                "bundle":  {
+                               "patch":  "./cordis.patch.yml"
+                           },
+                "engines":  {
+                                "dsh":  "\u003e=0.1.7-rc.1"
+                            }
+            },
+    "publishConfig":  {
+                          "access":  "public"
+                      },
+    "homepage":  "https://github.com/elysiamsia/dsh-bridge",
+    "bugs":  {
+                 "url":  "https://github.com/elysiamsia/dsh-bridge/issues"
+             }
+}

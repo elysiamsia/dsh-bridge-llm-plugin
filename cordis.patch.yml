@@ -1,0 +1,24 @@
+# dsh-bridge-llm-plugin —— 让 DSH 的模型直接走**已登录的 deepseek 网页会话**。
+#
+# 本插件自带的 bundle patch（由 package.json 的 dsh.bundle.patch 声明）。
+# 安装后 DSH 的模型选择器里会出现一个 provider：`deepseek-web`。
+#
+# ⚠️ 只替换默认模型时，请另行改 profile 的 cordis.patch.yml 里
+#    `agent-default-model` 那行（provider: deepseek-web / model: deepseek-web）。
+#
+# 配置项见插件 README；改完**完全退出并重启** DSH Desktop 才生效。
+- insert:
+    - id: dsh-bridge-llm-plugin
+      name: dsh-bridge-llm-plugin
+      config:
+        command: uv
+        args:
+          - run
+          - --directory
+          - D:/claude-code/dsh-bridge
+          - dsh-bridge
+        cwd: D:/claude-code/dsh-bridge
+        provider: deepseek-web
+        modelId: deepseek-web
+        # 🌸 真站 ask 要驱动浏览器（含浏览器冷启动），给足 3 分钟
+        toolCallTimeoutMs: 180000
