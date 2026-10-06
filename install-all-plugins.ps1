@@ -16,15 +16,22 @@
 
 param(
   [string]$Profile = 'desktop',
+  # 🌸 源码目录默认按「两个仓库同级」推导；布局不同时用这两个参数覆盖。
+  [string]$ToolsPlugin = '',
+  [string]$LlmPlugin = '',
   [switch]$Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
 
-# 插件清单：包名 -> 源码目录
+# 插件清单：包名 -> 源码目录。
+#
+# 🌸 不写死任何机器专属路径：默认假定两个插件仓库是**同级目录**
+#    （即 clone 到同一个父目录下）。若布局不同，用参数显式覆盖：
+#      -ToolsPlugin <路径>  /  -LlmPlugin <路径>
 $plugins = [ordered]@{
-  'dsh-bridge-plugin'     = 'D:\claude-code\dsh-bridge-plugin'
-  'dsh-bridge-llm-plugin' = 'D:\claude-code\dsh-bridge-llm-plugin'
+  'dsh-bridge-plugin'     = if ($ToolsPlugin) { $ToolsPlugin } else { Join-Path (Split-Path $PSScriptRoot -Parent) 'dsh-bridge-plugin' }
+  'dsh-bridge-llm-plugin' = if ($LlmPlugin)   { $LlmPlugin }   else { $PSScriptRoot }
 }
 
 function Write-JsonNoBom {

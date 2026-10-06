@@ -1,24 +1,38 @@
-# dsh-bridge-llm-plugin —— 让 DSH 的模型直接走**已登录的 deepseek 网页会话**。
+# dsh-bridge-llm-plugin — 把「已登录的 deepseek 网页会话」注册成 DSH 的模型 provider。
 #
 # 本插件自带的 bundle patch（由 package.json 的 dsh.bundle.patch 声明）。
 # 安装后 DSH 的模型选择器里会出现一个 provider：`deepseek-web`。
 #
-# ⚠️ 只替换默认模型时，请另行改 profile 的 cordis.patch.yml 里
-#    `agent-default-model` 那行（provider: deepseek-web / model: deepseek-web）。
+# ──────────────────────────────────────────────────────────────────────
+# ⚠️ 下面的 config 只放**与机器无关的默认值**。
 #
-# 配置项见插件 README；改完**完全退出并重启** DSH Desktop 才生效。
+#   发布包里**不能**出现机器专属路径。默认假定 `dsh-bridge` 已在 PATH 上
+#   （例如 `uv tool install .` / `pipx install .`）。
+#
+#   若你是**在源码目录里用 uv run 启动**，请在你**自己机器**的 profile
+#   `cordis.patch.yml`（`~/.dsh/profiles/<profile>/cordis.patch.yml`）追加覆盖：
+#
+#     - id: dsh-bridge-llm-plugin
+#       config:
+#         command: uv
+#         args: [run, --directory, /abs/path/to/dsh-bridge, dsh-bridge]
+#
+#   想把它设为**默认模型**，再改 profile 里 `agent-default-model` 那一行：
+#     - id: agent-default-model
+#       config: { provider: deepseek-web, model: deepseek-web }
+#
+# ⚠️ 该 provider **只能纯对话、无法调用工具**（网页版 UI 给不出结构化 tool-call）。
+# ⚠️ 站点冻结期选它会让每条消息都报 G20 错 —— 先跑 `dsh-login deepseek`。
+# 改完**完全退出并重启** DSH Desktop 才生效。
+# ──────────────────────────────────────────────────────────────────────
 - insert:
     - id: dsh-bridge-llm-plugin
       name: dsh-bridge-llm-plugin
       config:
-        command: uv
-        args:
-          - run
-          - --directory
-          - D:/claude-code/dsh-bridge
-          - dsh-bridge
-        cwd: D:/claude-code/dsh-bridge
+        # 假定 dsh-bridge 在 PATH 上；源码目录用法请在本机 profile 覆盖（见上）
+        command: dsh-bridge
+        args: []
         provider: deepseek-web
         modelId: deepseek-web
-        # 🌸 真站 ask 要驱动浏览器（含浏览器冷启动），给足 3 分钟
+        # 真站 ask 要驱动浏览器（含浏览器冷启动），给足 3 分钟
         toolCallTimeoutMs: 180000

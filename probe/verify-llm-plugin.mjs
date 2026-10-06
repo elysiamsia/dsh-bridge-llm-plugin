@@ -70,12 +70,20 @@ const replyJson = JSON.stringify({ reply: '你好呀 🌸', conversation_id: 'ab
 
 console.log('=== 1. 纯函数层 ===')
 
-check('resolveConfig 空配置 → 默认值', () => {
+check('resolveConfig 空配置 → 默认值（**不含机器专属路径**）', () => {
   const c = resolveConfig(undefined)
-  assert(c.command === 'uv', c.command)
+  // 🌸 发布包默认值必须与机器无关：假定 dsh-bridge 在 PATH 上，参数为空
+  assert(c.command === 'dsh-bridge', c.command)
+  assert(c.args.length === 0, `args 应为空，实际 ${c.args.join(' ')}`)
+  assert(c.cwd === '', `cwd 应为空字符串，实际 ${JSON.stringify(c.cwd)}`)
   assert(c.provider === 'deepseek-web', c.provider)
   assert(c.modelId === 'deepseek-web', c.modelId)
   assert(c.toolCallTimeoutMs === 180000, String(c.toolCallTimeoutMs))
+  // 断言里**不能**出现任何盘符 / 绝对路径
+  assert(
+    !/[A-Za-z]:[\\/]/.test(c.command + c.args.join(' ') + c.cwd),
+    `默认值里出现了本地路径：${JSON.stringify(c)}`,
+  )
 })
 
 check('resolveConfig 非法 provider 要响亮', () => {

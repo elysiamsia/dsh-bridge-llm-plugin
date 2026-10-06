@@ -1,128 +1,210 @@
-# dsh-bridge 的两个 DSH 原生插件
+# dsh-bridge-llm-plugin
 
-把本地 [dsh-bridge](https://github.com/elysiamsia/dsh-bridge)（Python + Playwright 驱动
-4 站**网页版** AI：DeepSeek / 豆包 / 智谱 / 通义千问）以 **DSH 原生插件**形式接入
-DeepSeek Harness。
+[![npm](https://img.shields.io/npm/v/dsh-bridge-llm-plugin?color=blue)](https://www.npmjs.com/package/dsh-bridge-llm-plugin)
+[![license](https://img.shields.io/github/license/elysiamsia/dsh-bridge-llm-plugin)](LICENSE)
+[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-%3E%3D0.1.7--rc.1-4b6bfb)](#requirements)
+[![node](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org)
 
-**业务逻辑只有一份**（现有 Python 实现）；插件只做「原生接入外壳」，通过 MCP stdio
-子进程复用已过 469 条测试的 Python 内核 —— **不重写 Playwright / stealth / fallback /
-登录 / G20 频控**。
+> **Use your logged-in DeepSeek web chat as a DeepSeek Harness model provider.**
 
-| 包 | inject | 提供什么 |
-|---|---|---|
-| **`dsh-bridge-plugin`** | `['tools']` | 原生工具 `ask_deepseek`、诊断探针 `dsh_bridge_probe` |
-| **`dsh-bridge-llm-plugin`** | `['llm']` | LLM provider `deepseek-web` —— DSH 的模型可用你**已登录的 deepseek 网页会话** |
+This plugin registers an LLM provider (`deepseek-web`) that answers through your **real,
+already-logged-in deepseek.com browser session** — driving the web UI via
+[dsh-bridge](https://github.com/elysiamsia/dsh-bridge) instead of calling a paid API.
 
-> 分成两个包是**刻意的**：任一插件出问题只影响自己的 fiber，不会把另一个拖下水。
+> ### ⚠️ Read this first — `deepseek-web` is **chat-only**
+>
+> The DeepSeek web UI exposes no structured tool-call output, so a model served this way
+> **cannot call tools**. It is useful for conversation, drafting, and second opinions —
+> **not** for agentic work that needs tools.
 
----
+[中文说明](README.zh-CN.md) · [Sibling package](https://github.com/elysiamsia/dsh-bridge-plugin) · [Troubleshooting](#troubleshooting)
 
-## 别人怎么装（三种方式，对应 DSH 「设置 → 插件 → 添加插件」）
-
-DSH 的添加插件输入框接受 **npm 包名 / GitHub 仓库地址 / 本地目录路径** 三种。
-
-### 方式 1：本地目录路径（今天就能用）
-
-前提：本机已有这两个插件目录（如从仓库 clone 下来）+ 已装 `dsh-bridge` 本体。
-
-在「添加插件」里分别填入：
-
-```
-D:\claude-code\dsh-bridge-plugin
-D:\claude-code\dsh-bridge-llm-plugin
+```mermaid
+flowchart LR
+    A["DSH model selector"] -->|provider: deepseek-web| B["dsh-bridge-llm-plugin<br/>this package"]
+    B -->|MCP over stdio| C["dsh-bridge<br/>Python + Playwright"]
+    C -->|drives| D["deepseek.com<br/>logged-in web session"]
+    D -.->|reply streamed back| B
 ```
 
-或直接用附带的统一安装脚本（离线、等价于逐条 `dsh plugin add`）：
+## Features
+
+| | |
+|---|---|
+| 🆓 **No API billing** | Consumes your web-plan quota instead of API tokens |
+| 🔐 **Your own session** | Uses the browser profile you are already signed in with |
+| 🌊 **Streaming-shaped output** | The whole reply is emitted as `text-delta` chunks, so the UI streams |
+| 🛡️ **Pre-flight rate-limit gate** | Refuses to send while the site is frozen, before touching the network |
+| 🪶 **Zero dependencies** | Pure ESM JavaScript; implements the adapter contract without importing `dsh-llm` |
+| 🔌 **Isolated fiber** | A failure here never affects your other plugins |
+
+## Requirements
+
+| Requirement | Notes |
+|---|---|
+| **DeepSeek Harness** | Desktop `0.2.0-rc.2` verified |
+| **Node.js ≥ 20** | Provided by the DSH host |
+| **dsh-bridge** | Python project, plus a completed `uv run dsh-login deepseek` |
+| **Logged-in DeepSeek** | The browser profile dsh-bridge uses must hold a valid session |
+
+## Install
+
+### Option 1 — npm (simplest)
+
+DSH → **Settings → Plugins → Add plugin**, paste:
+
+```
+dsh-bridge-llm-plugin
+```
+
+Or from a shell:
+
+```sh
+dsh plugin add dsh-bridge-llm-plugin
+```
+
+### Option 2 — local directory
 
 ```powershell
+# installs BOTH dsh-bridge plugins (tools + LLM) with post-install verification:
 powershell -ExecutionPolicy Bypass -File install-all-plugins.ps1
-# 卸载：
+# uninstall:
 powershell -ExecutionPolicy Bypass -File install-all-plugins.ps1 -Uninstall
 ```
 
-### 方式 2：GitHub 仓库地址
-
-把本目录推到 GitHub 后，在「添加插件」里填仓库地址，例如：
+### Option 3 — GitHub
 
 ```
-https://github.com/<你的账号>/dsh-bridge-plugin
-https://github.com/<你的账号>/dsh-bridge-llm-plugin
+https://github.com/elysiamsia/dsh-bridge-llm-plugin
 ```
 
-### 方式 3：npm 包名（发布后）
+> **Then fully quit and restart DSH Desktop.** Closing the window may only minimize it to
+> the tray. After restarting, `deepseek-web` appears in the model selector.
+
+## Configure
+
+**This package ships no machine-specific paths.** Defaults assume `dsh-bridge` is on your
+`PATH`. Running from a source checkout? Put **your** path in **your** profile
+(`~/.dsh/profiles/<profile>/cordis.patch.yml`):
+
+```yaml
+# Replace with YOUR absolute path to the dsh-bridge checkout
+- id: dsh-bridge-llm-plugin
+  config:
+    command: uv
+    args: [run, --directory, /absolute/path/to/dsh-bridge, dsh-bridge]
+    provider: deepseek-web
+    modelId: deepseek-web
+    toolCallTimeoutMs: 180000
+```
+
+To make it the **default** model, override the agent's model row too:
+
+```yaml
+- id: agent-default-model
+  config:
+    provider: deepseek-web
+    model: deepseek-web
+```
+
+<details>
+<summary><b>All configuration fields</b></summary>
+
+| Field | Default | Purpose |
+|---|---|---|
+| `command` | `dsh-bridge` | Executable that starts the bridge |
+| `args` | `[]` | Arguments passed to `command` |
+| `cwd` | `""` | Working directory (inherited when empty) |
+| `env` | `{}` | Extra environment variables |
+| `provider` | `deepseek-web` | Provider route name (`[A-Za-z0-9_-]{1,32}`) |
+| `modelId` | `deepseek-web` | Model id shown to the model selector |
+| `displayName` | `DeepSeek (web chat login)` | Label in the selector |
+| `toolCallTimeoutMs` | `180000` | Per-call timeout; each ask drives a browser |
+| `bootstrapProbe` | `false` | Log a one-off adapter contract self-test at startup |
+
+</details>
+
+## Usage
+
+Select **`deepseek-web`** in the model selector, then chat normally.
+
+**Before your first real request**, renew the site session — a frozen site makes every
+message fail with a rate-limit error:
+
+```sh
+uv run --no-sync dsh-login deepseek
+```
+
+<details>
+<summary><b>Why was my request rejected with a rate-limit error?</b></summary>
+
+This project enforces one hard rule: **every real-site smoke run revokes all four site
+accounts at once.** The bridge's `ask` path does not check this itself, so the adapter runs
+a **pre-flight gate** — reading the verify state through the bridge's pure-logic
+`route_task` call (no browser, no network) and refusing when the site is frozen. If the
+pre-flight check itself fails, it **fails closed**.
+
+Fix: run `uv run --no-sync dsh-login deepseek`, then retry.
+
+</details>
+
+## Troubleshooting
+
+### Switch on diagnostics
+
+Logging is **off by default**:
 
 ```powershell
-cd dsh-bridge-plugin      && npm publish --access public
-cd ..\dsh-bridge-llm-plugin && npm publish --access public
+$env:DSH_BRIDGE_LLM_PLUGIN_DIAG = "$env:TEMP\dsh-bridge-llm-plugin.log"
 ```
 
-发布后别人在「添加插件」里填包名即可：`dsh-bridge-plugin` / `dsh-bridge-llm-plugin`。
+It records module import, `apply` entry (including the real shape of `ctx`, e.g. whether
+`ctx.llm.registerAdapter` exists), every step, and full exception stacks.
 
-> 注意：包名在 npm 上必须唯一。若已被占用，改用 scope，如 `@你的名字/dsh-bridge-plugin`
-> （同时要改 `package.json` 的 `name`、以及各自 `cordis.patch.yml` 里 loader 行的 `name`）。
+### The provider never appears
 
----
-
-## 前置条件（别人的机器上也要有）
-
-1. **DSH Desktop**（本插件针对 `@deepseek-ai/dsh-desktop 0.2.0-rc.2` 实测）
-2. **Node.js ≥ 20**（宿主自带 Node，无需单独装）
-3. **Python ≥ 3.11 + uv**：插件的 `command`/`args` 默认是
-   `uv run --directory <dsh-bridge 路径> dsh-bridge`
-4. **dsh-bridge 本体**（Python 侧）已就位并能跑：
-   ```powershell
-   uv run --no-sync dsh-verify readiness
-   ```
-5. **站点登录态**：真站调用前先续期（否则被 G20 拦）
-   ```powershell
-   uv run --no-sync dsh-login deepseek
-   ```
-
-配置项（`command`/`args`/`cwd`/超时/provider 名等）在两个包各自的 `cordis.patch.yml`
-里，改动后**完全退出并重启** DSH Desktop 才生效（关窗口可能只是最小化到托盘）。
-
----
-
-## ⚠️ 两条必须知道的硬约束
-
-### 1. G20 频控铁律（**最高优先级**）
-
-- 每跑 1 次真站冒烟 = **4 个站点账号同时吊销**
-- 真站访问只允许 **deepseek**，且 `verify ≥ 6.0h`
-- **dsh-bridge 的 `ask` 路径本身不检查 G20**（源码确认），所以**两个插件都内置了
-  G20 前置闸门**：调用前先用 `route_task`（纯逻辑、不起浏览器、不 send）读
-  `verify_status`，冻结/陈旧就**拒绝**并提示你跑 `dsh-login`
-- 预检本身失败时**保守拒绝**（宁可拒绝，也不冒误发风险）
-
-### 2. 网页版聊天没有结构化工具调用
-
-`deepseek-web` 这个 provider **只能纯对话**：网页 UI 给不出 `tool-call`，
-所以挂上它以后模型**无法调用任何工具**（不能跑 agent 循环）。
-这是网页版的固有边界，不是实现缺陷。
-
----
-
-## 排障
-
-插件自带**面包屑日志**（沿用工具插件验证过的诊断技法）：
-
-```
-dsh-bridge-plugin\diag\boot.log
-dsh-bridge-llm-plugin\diag\boot.log
-```
-
-日志记录：导入期 → apply 入口（含 `ctx` 真实形状）→ 每一步 → 每个异常（完整栈）。
-**即使插件页只显示「异常」而不给原因，也能从这两个文件读到确切失败点。**
-
-宿主崩溃日志：`%APPDATA%\@deepseek-ai\dsh-desktop\logs\crash-*-host.log`
-
-### 已知陷阱（改代码前必读）
-
-| 陷阱 | 说明 |
+| Symptom | Check |
 |---|---|
-| profile 的 `package.json` **绝不能带 UTF-8 BOM** | 宿主启动时直接 `JSON.parse`，BOM 会 `DesktopHostFatalError` 崩溃。PowerShell 5.1 的 `Set-Content -Encoding UTF8` 会写 BOM，必须用 `[System.IO.File]::WriteAllText(..., UTF8Encoding($false))` |
-| 含中文的 `.ps1` **必须有** BOM | PS 5.1 无 BOM 时按 GBK 解码中文 → 语法错。与上一条**方向相反** |
-| `lib/index.js` 必须是**纯 ESM JS** | 宿主直接 import，不经转译；写 TS 类型语法会 SyntaxError |
-| **不要 `import '@deepseek-ai/dsh-tools'`** | 本机 profile 里解析不到（junction 指向已消失的 npx 缓存）。工具定义请**直接写标准 JSON Schema**（`required` 是**字符串数组**，不是 DSH 方言的 `required: true`） |
-| LLM adapter **不要继承 `LlmAdapter`** | `registerAdapter()` 不做 `instanceof` 检查，**鸭子类型即可**；但要实现基类**全部 7 个方法**（缺一个就是 `undefined` → TypeError） |
-| `file://` URL | Node 的 `import()` 在 Windows 上不接受裸 `C:/...` 路径 |
+| No `deepseek-web` in the selector | DSH was not fully restarted, or the row failed to load |
+| Plugin row shows *failed* | `DSH_BRIDGE_LLM_PLUGIN_DIAG` names the failing step |
+| Provider listed, but every reply errors | The site is frozen — run `dsh-login deepseek` |
+
+<details>
+<summary><b>Implementation note: the adapter is duck-typed</b></summary>
+
+`ctx.llm.registerAdapter()` performs **no `instanceof` check**, so this plugin does not
+import `@deepseek-ai/dsh-llm` (which may not be resolvable from a profile). It implements
+all seven base-class methods directly:
+
+`providerInfo` · `providerRetryPolicy` · `imageRequestPricing` · `listModels` ·
+`resolveModel` · `prepareCall` · `stream`
+
+Missing any one would surface as a `TypeError` at call time.
+
+</details>
+
+## Development
+
+```sh
+node probe/verify-llm-plugin.mjs                 # self-check: stub-based, never touches a real site
+node probe/check-npm-compat.mjs <package-name>   # will a third-party plugin be skipped?
+```
+
+| Script | Purpose |
+|---|---|
+| `probe/verify-llm-plugin.mjs` | Self-check: config, prompt building, adapter contract, rate-limit gate, stream |
+| `probe/check-npm-compat.mjs` | Replays DSH's compatibility gate for any npm package before installing it |
+
+## Contributing
+
+Issues and PRs are welcome. Keep the zero-dependency, no-build-step constraint, and please
+run the self-check before opening a PR.
+
+## License
+
+[MIT](LICENSE)
+
+## Acknowledgements
+
+- [dsh-bridge](https://github.com/elysiamsia/dsh-bridge) — the Python browser bridge behind every call
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — the host and its LLM adapter contract
